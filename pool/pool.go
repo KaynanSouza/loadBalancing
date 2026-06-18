@@ -45,15 +45,21 @@ func (p *Pool) RequestHandler() func(rw http.ResponseWriter, req *http.Request) 
 }
 
 func (p *Pool) Serve(rw http.ResponseWriter, req *http.Request) {
-	server := p.GetNextServer(req)
-
+server := p.GetNextServer(req)
+	
 	if server == nil {
 		http.Error(rw, "503 - Todos os Pods estão offline", http.StatusServiceUnavailable)
 		return
 	}
-	
+
+	server.IncConn()
+	start := time.Now()
+
 	proxy := server.ReverseProxy()
 	proxy.ServeHTTP(rw, req)
+
+	latency := int(time.Since(start).Milliseconds())
+	server.DecConn(latency)
 }
 
 func (p *Pool) GetNextServer(req *http.Request) server.Server {

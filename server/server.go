@@ -17,4 +17,6 @@ type Server interface {
 	Weight() int
 	SetWeight(w int)
 	Serve(rw http.ResponseWriter, req *http.Request)
+	IncConn()
+	DecConn(latencyMs int)
 }

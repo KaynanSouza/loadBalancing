@@ -106,3 +106,17 @@ func (b *Backend) SetWeight(weight int) {
 	b.weight = weight
 	b.mux.Unlock()
 }
+
+func (b *Backend) IncConn() {
+	b.mux.Lock()
+	b.activeConn++
+	b.totalReq++
+	b.mux.Unlock()
+}
+
+func (b *Backend) DecConn(latencyMs int) {
+	b.mux.Lock()
+	b.activeConn--
+	b.totalLatencyMs += latencyMs
+	b.mux.Unlock()
+}
