@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-	"net/url"
 	"sync/atomic"
 	"time"
 
@@ -43,10 +42,13 @@ func (p *Pool) RequestHandler() func(rw http.ResponseWriter, req *http.Request) 
 
 func (p *Pool) Serve(rw http.ResponseWriter, req *http.Request) {
 	server := p.GetNextServer(req)
+
+	if server == nil {
+		http.Error(rw, "503 - Todos os Pods estão offline", http.StatusServiceUnavailable)
+		return
+	}
+	
 	proxy := server.ReverseProxy()
-
-	req.Host = server.Address()
-
 	proxy.ServeHTTP(rw, req)
 }
 
@@ -152,7 +154,8 @@ func (p *Pool) GetNextServer(req *http.Request) server.Server {
 			return s
 		}
 	}
-	panic("No backends exist")
+	log.Println("CRÍTICO: Nenhum backend saudável disponível!")
+	return nil
 }
 
 func (p *Pool) GetServer(targetAddr string) (server.Server, error) {
@@ -166,28 +169,30 @@ func (p *Pool) GetServer(targetAddr string) (server.Server, error) {
 
 func (p *Pool) HealthCheck() {
 	for _, server := range p.Servers {
-		if server.IsAlive() {
-			alive := isServerAlive(server)
-			server.SetAlive(alive)
-			if !alive {
-				log.Printf("(%s) is down\n", server.Address())
-			}
+		// Removido o if server.IsAlive() para que ele sempre teste
+		alive := isServerAlive(server)
+		server.SetAlive(alive)
+		if !alive {
+			log.Printf("(%s) is down\n", server.Address())
 		}
 	}
 }
 
 func isServerAlive(server server.Server) bool {
-	url := &url.URL{
-		Scheme: "http",
-		Host:   server.Address(),
+	// Substituímos o dial TCP bruto por um cliente HTTP moderno
+	client := http.Client{
+		Timeout: 2 * time.Second,
 	}
-	timeout := 2 * time.Second
-	conn, err := net.DialTimeout("tcp", url.Host, timeout)
-	if err != nil {
-		log.Printf("[%s] unreachable, error: ", server.Address(), err)
+	
+	// Fazemos um requisição HEAD (mais leve, pede só os cabeçalhos)
+	resp, err := client.Head(server.Address())
+	
+	// Se der erro de rede ou o Nginx retornar erro de servidor (500+)
+	if err != nil || resp.StatusCode >= 500 {
+		log.Printf("[%s] unreachable, error: %v\n", server.Address(), err)
 		return false
 	}
-	defer conn.Close()
+
 	return true
 }
 

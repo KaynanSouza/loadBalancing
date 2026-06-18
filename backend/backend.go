@@ -101,6 +101,8 @@ func (b *Backend) Weight() int {
 	return b.weight
 }
 
-func (b *Backend) SetWeight(i int) {
-
+func (b *Backend) SetWeight(weight int) {
+	b.mux.Lock()
+	b.weight = weight
+	b.mux.Unlock()
 }

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"time"
 
 	"github.com/wfgilman/balancer/backend"
 	"github.com/wfgilman/balancer/pool"
@@ -14,40 +13,45 @@ import (
 )
 
 func New(targetAddr string) *httputil.ReverseProxy {
-	targetUrl := &url.URL{
-		Scheme: "http",
-		Host:   targetAddr,
+	// 1. Resolve o Bug do DNS: Usamos o Parse nativo para ler a URL corretamente
+	targetUrl, err := url.Parse(targetAddr)
+	if err != nil {
+		log.Fatal("Erro fatal ao fazer o parse da URL de destino:", err)
 	}
-	return httputil.NewSingleHostReverseProxy(targetUrl)
+	
+	proxy := httputil.NewSingleHostReverseProxy(targetUrl)
+	
+	// 2. Proteção SRE: Intercepta a requisição para reescrever o cabeçalho
+	// e evitar o erro "403 Forbidden" do Kubernetes
+	originalDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		originalDirector(req)
+		req.Host = targetUrl.Host // Mente para o K8s que a requisição é interna
+	}
+	
+	return proxy
 }
 
 func ErrorHandler(p *httputil.ReverseProxy, sp pool.Pool, be *backend.Backend) func(rw http.ResponseWriter, req *http.Request, e error) {
-	// A custom error handler which will retry a failed request then
-	// server another backend if the request continues to fail.
 	return func(rw http.ResponseWriter, req *http.Request, e error) {
-		log.Printf("[%s] %s\n", be.Address(), e.Error())
+		log.Printf("[%s] Erro no Proxy: %v\n", be.Address(), e)
+		
+		// Marca o nó como morto imediatamente
+		be.SetAlive(false)
+
 		retries := utils.CountRetries(req)
-		if retries < 3 {
-			select {
-			case <-time.After(10 * time.Millisecond):
-				ctx := context.WithValue(req.Context(), utils.Retries, retries+1)
-				p.ServeHTTP(rw, req.WithContext(ctx))
-			}
+		if retries >= 3 {
+			log.Printf("[%s] Máximo de retentativas atingido. Desistindo.\n", req.RemoteAddr)
+			http.Error(rw, "502 Bad Gateway - Falha na comunicação com o Pod", http.StatusBadGateway)
 			return
 		}
 
-		// After 3 retries to the same server, mark as down.
-		server, err := sp.GetServer(be.Address())
-		if err != nil {
-			log.Printf("[%s] %s\n", be.Address(), err)
-		}
-		server.SetAlive(false)
-
-		// Increment the number of attempts of the request and route it to a
-		// new server using the pool algorithm.
 		attempts := utils.CountAttempts(req)
-		log.Printf("[%s] Attemping retry %d\n", req.RemoteAddr, attempts)
-		ctx := context.WithValue(req.Context(), utils.Attempts, attempts+1)
+		log.Printf("[%s] Tentativa de roteamento %d\n", req.RemoteAddr, attempts)
+		
+		// Injeta os contadores no contexto e tenta o próximo servidor na pool
+		ctx := context.WithValue(req.Context(), utils.Retries, retries+1)
+		ctx = context.WithValue(ctx, utils.Attempts, attempts+1)
 		sp.Serve(rw, req.WithContext(ctx))
 	}
 }

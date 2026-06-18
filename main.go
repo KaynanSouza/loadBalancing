@@ -38,7 +38,7 @@ func serverStats() {
 var serverPool pool.Pool
 
 func main() {
-	port := flag.Int("port", 8000, "Enter port number for load balancer")
+	port := flag.Int("port", 8080, "Enter port number for load balancer")
 	algo := flag.String("algo", "alwaysfirst", "Balancing algorithm")
 	flag.Parse()
 
@@ -57,7 +57,7 @@ func main() {
 		"nginx-nodes-784fdb7b89-zq4ql",
 	}
 
-	k8sProxyBase := "http://127.0.0.1:8000"
+	k8sProxyBase := "http://127.0.0.1:8080"
 
 	for _, podName := range podNames {
 		addr := fmt.Sprintf("%s/api/v1/namespaces/default/pods/%s:80/proxy/", k8sProxyBase, podName)
