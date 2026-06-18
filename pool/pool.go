@@ -121,16 +121,42 @@ func (p *Pool) GetNextServer(req *http.Request) server.Server {
 		return p.Servers[idx]
 
 	case PowerOfTwoChoices:
-		idx1, idx2 := rand.Intn(len(p.Servers)), rand.Intn(len(p.Servers))
-		srv1, srv2 := p.Servers[idx1], p.Servers[idx2]
+// 1. Cria uma lista apenas com os pods que estão vivos
+		var aliveServers []Server
+		for _, srv := range p.Servers {
+			if srv.IsAlive() {
+				aliveServers = append(aliveServers, srv)
+			}
+		}
 
-		if srv1.IsAlive() && (!srv2.IsAlive() || srv1.ActiveConnections() <= srv2.ActiveConnections()) {
+		// 2. Trava de Segurança Matemática (Evita o Panic)
+		if len(aliveServers) == 0 {
+			log.Println("CRÍTICO: P2C não encontrou pods vivos. Abortando sorteio!")
+			return nil // O main.go vai transformar isso num Erro 503 HTTP
+		}
+
+		// 3. Se só sobrou 1 pod vivo, não há o que sortear, envia para ele
+		if len(aliveServers) == 1 {
+			return aliveServers[0]
+		}
+
+		// 4. Sorteia dois pods diferentes da lista de vivos
+		idx1 := rand.Intn(len(aliveServers))
+		idx2 := rand.Intn(len(aliveServers))
+
+		// Garante que não sorteamos o mesmo pod duas vezes por acidente
+		for idx1 == idx2 {
+			idx2 = rand.Intn(len(aliveServers))
+		}
+
+		srv1 := aliveServers[idx1]
+		srv2 := aliveServers[idx2]
+
+		// 5. Compara as conexões ativas e retorna o mais vazio (Lógica P2C real)
+		if srv1.ActiveConnections() <= srv2.ActiveConnections() {
 			return srv1
 		}
-
-		if srv2.IsAlive() {
-			return srv2
-		}
+		return srv2
 
 	case WeightedRoundRobin:
 		totalWeight := 0
