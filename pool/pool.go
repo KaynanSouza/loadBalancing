@@ -67,8 +67,16 @@ func (p *Pool) GetNextServer(req *http.Request) server.Server {
 	case AlwaysFirst:
 		return p.Servers[0]
 	case RoundRobin:
+		// 1. Primeira Trava: Impede o "integer divide by zero" se a lista de servidores sumir
+		if len(p.Servers) == 0 {
+			log.Println("CRÍTICO: Pool de servidores vazio no Round Robin!")
+			return nil
+		}
+
+		// A lógica original com ponteiro atômico é mantida (muito eficiente)
 		nextIndex := int(atomic.AddUint64(&p.Current, uint64(1)) % uint64(len(p.Servers)))
 		length := len(p.Servers) + nextIndex
+		
 		for i := nextIndex; i < length; i++ {
 			index := i % len(p.Servers)
 			if p.Servers[index].IsAlive() {
@@ -78,7 +86,11 @@ func (p *Pool) GetNextServer(req *http.Request) server.Server {
 				return p.Servers[index]
 			}
 		}
-		panic("No healthy backends exist")
+
+		// 2. Segunda Trava: Se o loop rodou todos os pods e nenhum está vivo, devolvemos nil
+		// Isso impede que o código caia no panic lá embaixo.
+		log.Println("CRÍTICO: Round Robin não encontrou pods vivos. Abortando roteamento!")
+		return nil
 	case LeastLatency:
 		var s server.Server
 		min := math.MaxInt
@@ -121,7 +133,7 @@ func (p *Pool) GetNextServer(req *http.Request) server.Server {
 		return p.Servers[idx]
 
 	case PowerOfTwoChoices:
-// 1. Cria uma lista apenas com os pods que estão vivos
+		// 1. Cria uma lista apenas com os pods que estão vivos
 		var aliveServers []server.Server
 		for _, srv := range p.Servers {
 			if srv.IsAlive() {
