@@ -122,7 +122,7 @@ func (p *Pool) GetNextServer(req *http.Request) server.Server {
 
 	case PowerOfTwoChoices:
 // 1. Cria uma lista apenas com os pods que estão vivos
-		var aliveServers []Server
+		var aliveServers []server.Server
 		for _, srv := range p.Servers {
 			if srv.IsAlive() {
 				aliveServers = append(aliveServers, srv)
