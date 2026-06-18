@@ -45,16 +45,16 @@ func main() {
 	serverPool.Algorithm = *algo
 
 	podNames := []string{
-		"nginx-nodes-784fdb7b89-269fh",
-		"nginx-nodes-784fdb7b89-4r6bm",
-		"nginx-nodes-784fdb7b89-5wc4d",
-		"nginx-nodes-784fdb7b89-6sccb",
-		"nginx-nodes-784fdb7b89-8xvxz",
-		"nginx-nodes-784fdb7b89-gkgmk",
-		"nginx-nodes-784fdb7b89-k6tnr",
-		"nginx-nodes-784fdb7b89-kfzmm",
-		"nginx-nodes-784fdb7b89-mkb4n",
-		"nginx-nodes-784fdb7b89-zq4ql",
+		"nginx-nodes-866bc755d6-26xbb",
+		"nginx-nodes-866bc755d6-2c2p8",
+		"nginx-nodes-866bc755d6-5ws7l",
+		"nginx-nodes-866bc755d6-7vfq6",
+		"nginx-nodes-866bc755d6-8nncn",
+		"nginx-nodes-866bc755d6-99kws",
+		"nginx-nodes-866bc755d6-dx42l",
+		"nginx-nodes-866bc755d6-l6g2c",
+		"nginx-nodes-866bc755d6-svxl4",
+		"nginx-nodes-866bc755d6-x627s",
 	}
 
 	k8sProxyBase := "http://127.0.0.1:8080"

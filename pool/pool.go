@@ -24,6 +24,10 @@ const (
 	WeightedRoundRobin        = "wrr"
 )
 
+func init() {
+    rand.Seed(time.Now().UnixNano())
+}
+
 type Pool struct {
 	Current   uint64
 	Servers   []server.Server
@@ -111,8 +115,6 @@ func (p *Pool) GetNextServer(req *http.Request) server.Server {
 		return p.Servers[idx]
 
 	case PowerOfTwoChoices:
-		rand.Seed(time.Now().UnixNano())
-
 		idx1, idx2 := rand.Intn(len(p.Servers)), rand.Intn(len(p.Servers))
 		srv1, srv2 := p.Servers[idx1], p.Servers[idx2]
 
@@ -135,7 +137,6 @@ func (p *Pool) GetNextServer(req *http.Request) server.Server {
 			break // Fallback se todos os pesos forem 0
 		}
 
-		rand.Seed(time.Now().UnixNano())
 		randomPoint := rand.Intn(totalWeight)
 		currentSum := 0
 
