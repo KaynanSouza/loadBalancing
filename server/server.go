@@ -19,4 +19,5 @@ type Server interface {
 	Serve(rw http.ResponseWriter, req *http.Request)
 	IncConn()
 	DecConn(latencyMs int)
+	GetPredictiveScore() float64
 }

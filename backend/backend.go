@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -9,6 +10,16 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/go-redis/redis/v8"
+)
+
+
+var (
+	ctx = context.Background()
+	rdb = redis.NewClient(&redis.Options{
+		Addr: "127.0.0.1:6379",
+	})
 )
 
 type Backend struct {
@@ -119,4 +130,15 @@ func (b *Backend) DecConn(latencyMs int) {
 	b.activeConn--
 	b.totalLatencyMs += latencyMs
 	b.mux.Unlock()
+}
+
+
+func (b *Backend) GetPredictiveScore() float64 {
+    key := "ai_score:" + b.Addr
+    
+    val, err := rdb.HGet(ctx, key, "score").Float64()
+    if err != nil {
+        return 50.0 
+    }
+    return val
 }

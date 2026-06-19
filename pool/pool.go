@@ -14,6 +14,8 @@ import (
 	"github.com/wfgilman/balancer/server"
 )
 
+
+
 const (
 	AlwaysFirst        string = "alwaysfirst"
 	RoundRobin                = "roundrobin"
@@ -22,6 +24,7 @@ const (
 	IPHash                    = "iphash"
 	PowerOfTwoChoices         = "p2c"
 	WeightedRoundRobin        = "wrr"
+	PredictiveAI              = "predictive"
 )
 
 func init() {
@@ -192,6 +195,39 @@ func (p *Pool) GetNextServer(req *http.Request) server.Server {
 				}
 			}
 		}
+	case PredictiveAI:
+		// 1. Filtra os pods que estão fisicamente vivos (Health Check)
+		var aliveServers []server.Server
+		for _, srv := range p.Servers {
+			if srv.IsAlive() {
+				aliveServers = append(aliveServers, srv)
+			}
+		}
+
+		// 2. Trava de Segurança SRE
+		if len(aliveServers) == 0 {
+			log.Println("CRÍTICO: IA não encontrou pods vivos. Acionando disjuntor (503)!")
+			return nil
+		}
+
+		// 3. Seleção Preditiva (Escolhe o Pod com a maior nota no Redis)
+		var bestServer server.Server
+		var highestScore float64 = -1.0 // Inicia negativo para forçar a primeira atribuição
+
+		for _, srv := range aliveServers {
+			// Busca a nota calculada pela Regressão Múltipla
+			currentScore := srv.GetPredictiveScore() 
+
+			if bestServer == nil || currentScore > highestScore {
+				bestServer = srv
+				highestScore = currentScore
+			}
+		}
+
+		// Opcional: Imprime no terminal para você ver a IA em ação durante os testes
+		// log.Printf("IA roteou para: %s | Score: %.2f\n", bestServer.GetURL(), highestScore)
+
+		return bestServer
 	}
 
 	for _, s := range p.Servers {
